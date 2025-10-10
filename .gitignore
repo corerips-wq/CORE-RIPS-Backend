@@ -29,12 +29,25 @@ wheels/
 *.swp
 *.swo
 *~
-.DS_Store
 
-# Environment variables
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Environment variables and configuration
 .env
 .env.local
 .env.*.local
+config.py
+*/config.py
+**/config.py
+
+# Database configuration
+alembic.ini
+*/alembic.ini
+**/alembic.ini
+alembic.ini.bak
 
 # Logs
 *.log
@@ -46,19 +59,18 @@ wheels/
 # Uploads and temporary files
 uploads/*
 !uploads/.gitkeep
+uploads/*.rtf
+uploads/*.txt
+uploads/*.pdf
 analysis_output/*
 !analysis_output/.gitkeep
 
-# Alembic
-alembic.ini.bak
+# Excel files with sensitive business rules
+RULESRIPS/*.xlsx
+*.xlsx
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
 
