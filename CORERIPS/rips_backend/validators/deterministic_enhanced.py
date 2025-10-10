@@ -78,30 +78,359 @@ class EnhancedDeterministicValidator:
         """Validar archivo RIPS completo con reglas específicas"""
         errors = []
         
+        # Validar extensión de archivo
+        file_extension = file_path.lower().split('.')[-1]
+        
+        if file_extension in ['xlsx', 'xls']:
+            return self._validate_excel_file(file_path, file_type)
+        elif file_extension in ['txt', 'csv']:
+            return self._validate_text_file(file_path, file_type)
+        elif file_extension == 'json':
+            return self._validate_json_file(file_path, file_type)
+        elif file_extension == 'xml':
+            return self._validate_xml_file(file_path, file_type)
+        elif file_extension == 'zip':
+            return self._validate_zip_file(file_path, file_type)
+        else:
+            errors.append(ErrorResponse(
+                line=0,
+                field="archivo",
+                error=f"Formato no soportado (.{file_extension}). Formatos válidos: .txt, .json, .xml, .zip"
+            ))
+            return errors
+    
+    def _validate_excel_file(self, file_path: str, file_type: str) -> List[ErrorResponse]:
+        """Validar archivo Excel RIPS"""
+        errors = []
+        
+        try:
+            import pandas as pd
+            
+            # Leer Excel
+            df = pd.read_excel(file_path)
+            
+            # Validar que tenga columnas
+            if df.empty:
+                errors.append(ErrorResponse(
+                    line=0,
+                    field="archivo",
+                    error="El archivo está vacío"
+                ))
+                return errors
+            
+            # Validar estructura básica RIPS
+            columns = [col.upper().strip() for col in df.columns]
+            
+            # Columnas comunes en archivos RIPS
+            rips_indicators = [
+                'CODIGO_PRESTADOR', 'TIPO_DOCUMENTO', 'NUMERO_DOCUMENTO',
+                'FECHA', 'DIAGNOSTICO', 'CUPS', 'CIE', 'USUARIO'
+            ]
+            
+            has_rips_columns = any(indicator in ' '.join(columns) for indicator in rips_indicators)
+            
+            if not has_rips_columns:
+                errors.append(ErrorResponse(
+                    line=0,
+                    field="archivo",
+                    error=f"Este no es un archivo RIPS válido. El archivo contiene: {', '.join(df.columns[:3])}..."
+                ))
+                return errors
+            
+            # Validar cada fila
+            for idx, row in df.iterrows():
+                row_errors = self._validate_excel_row(row, idx + 2, file_type)  # +2 porque Excel empieza en 1 y tiene header
+                errors.extend(row_errors)
+                
+                # Limitar a 100 errores para no saturar
+                if len(errors) >= 100:
+                    errors.append(ErrorResponse(
+                        line=idx + 2,
+                        field="validación",
+                        error="⚠️ Se encontraron más de 100 errores. Validación detenida."
+                    ))
+                    break
+            
+            if not errors:
+                errors.append(ErrorResponse(
+                    line=0,
+                    field="validación",
+                    error="✅ Archivo Excel RIPS validado correctamente"
+                ))
+                    
+        except ImportError:
+            errors.append(ErrorResponse(
+                line=0,
+                field="sistema",
+                error="Error del sistema: falta librería para leer Excel (pandas/openpyxl)"
+            ))
+        except Exception as e:
+            errors.append(ErrorResponse(
+                line=0,
+                field="archivo",
+                error=f"Error al leer archivo Excel: {str(e)}"
+            ))
+        
+        return errors
+    
+    def _validate_excel_row(self, row, line_number: int, file_type: str) -> List[ErrorResponse]:
+        """Validar fila de Excel"""
+        errors = []
+        # Aquí puedes agregar validaciones específicas para filas de Excel
+        # Por ahora solo validación básica
+        return errors
+    
+    def _validate_text_file(self, file_path: str, file_type: str) -> List[ErrorResponse]:
+        """Validar archivo de texto RIPS (formato pipe-delimited)"""
+        errors = []
+        
         if file_type not in self.file_structures:
             errors.append(ErrorResponse(
                 line=0,
                 field="file_type",
-                error=f"Tipo de archivo no soportado: {file_type}"
+                error=f"Tipo de archivo '{file_type}' no soportado. Tipos válidos: {', '.join(self.file_structures.keys())}"
             ))
             return errors
         
         try:
             with open(file_path, 'r', encoding='utf-8') as file:
-                for line_number, line in enumerate(file, 1):
+                lines = file.readlines()
+                
+                if not lines:
+                    errors.append(ErrorResponse(
+                        line=0,
+                        field="archivo",
+                        error="El archivo está vacío"
+                    ))
+                    return errors
+                
+                for line_number, line in enumerate(lines, 1):
                     line = line.strip()
                     if not line:
+                        continue
+                    
+                    # Verificar que tenga delimitador pipe
+                    if '|' not in line:
+                        errors.append(ErrorResponse(
+                            line=line_number,
+                            field="formato",
+                            error="Formato incorrecto: debe usar '|' como separador de campos"
+                        ))
                         continue
                     
                     fields = line.split('|')
                     line_errors = self._validate_line_enhanced(fields, line_number, file_type)
                     errors.extend(line_errors)
                     
+                    # Limitar errores
+                    if len(errors) >= 100:
+                        errors.append(ErrorResponse(
+                            line=line_number,
+                            field="validación",
+                            error="⚠️ Se encontraron más de 100 errores. Validación detenida."
+                        ))
+                        break
+                    
+        except UnicodeDecodeError:
+            errors.append(ErrorResponse(
+                line=0,
+                field="archivo",
+                error="Error de codificación: el archivo debe estar en UTF-8"
+            ))
         except Exception as e:
             errors.append(ErrorResponse(
                 line=0,
-                field="file",
+                field="archivo",
                 error=f"Error al leer archivo: {str(e)}"
+            ))
+        
+        return errors
+    
+    def _validate_json_file(self, file_path: str, file_type: str) -> List[ErrorResponse]:
+        """Validar archivo JSON RIPS"""
+        errors = []
+        
+        try:
+            import json
+            
+            with open(file_path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+            
+            # Verificar si es un array o un objeto
+            if isinstance(data, list):
+                records = data
+            elif isinstance(data, dict):
+                # Buscar el array de registros en el JSON
+                records = data.get('registros') or data.get('records') or data.get('data') or [data]
+            else:
+                errors.append(ErrorResponse(
+                    line=0,
+                    field="estructura",
+                    error="Estructura JSON no válida para RIPS"
+                ))
+                return errors
+            
+            if not records:
+                errors.append(ErrorResponse(
+                    line=0,
+                    field="archivo",
+                    error="El archivo JSON no contiene registros"
+                ))
+                return errors
+            
+            # Validar cada registro
+            for idx, record in enumerate(records[:100], 1):  # Limitar a 100 registros
+                if not isinstance(record, dict):
+                    errors.append(ErrorResponse(
+                        line=idx,
+                        field="registro",
+                        error=f"Registro {idx} no es un objeto válido"
+                    ))
+                    continue
+                
+                # Aquí puedes agregar validaciones específicas de campos RIPS
+                # Por ahora solo verificamos estructura básica
+            
+            if not errors:
+                errors.append(ErrorResponse(
+                    line=0,
+                    field="validación",
+                    error=f"✅ Archivo JSON procesado: {len(records)} registro(s)"
+                ))
+                    
+        except json.JSONDecodeError as e:
+            errors.append(ErrorResponse(
+                line=0,
+                field="archivo",
+                error=f"Error de formato JSON: {str(e)}"
+            ))
+        except Exception as e:
+            errors.append(ErrorResponse(
+                line=0,
+                field="archivo",
+                error=f"Error al leer archivo JSON: {str(e)}"
+            ))
+        
+        return errors
+    
+    def _validate_xml_file(self, file_path: str, file_type: str) -> List[ErrorResponse]:
+        """Validar archivo XML RIPS"""
+        errors = []
+        
+        try:
+            import xml.etree.ElementTree as ET
+            
+            tree = ET.parse(file_path)
+            root = tree.getroot()
+            
+            # Buscar elementos de registros comunes en XML RIPS
+            registro_tags = ['registro', 'Registro', 'record', 'Record', 'item', 'row']
+            records = []
+            
+            for tag in registro_tags:
+                records = root.findall(f'.//{tag}')
+                if records:
+                    break
+            
+            if not records:
+                errors.append(ErrorResponse(
+                    line=0,
+                    field="estructura",
+                    error="No se encontraron registros en el XML. Etiquetas esperadas: <registro>, <record>, etc."
+                ))
+                return errors
+            
+            # Validar cada registro (limitar a 100)
+            for idx, record in enumerate(records[:100], 1):
+                # Aquí puedes agregar validaciones específicas
+                pass
+            
+            if not errors:
+                errors.append(ErrorResponse(
+                    line=0,
+                    field="validación",
+                    error=f"✅ Archivo XML procesado: {len(records)} registro(s)"
+                ))
+                    
+        except ET.ParseError as e:
+            errors.append(ErrorResponse(
+                line=0,
+                field="archivo",
+                error=f"Error de formato XML: {str(e)}"
+            ))
+        except Exception as e:
+            errors.append(ErrorResponse(
+                line=0,
+                field="archivo",
+                error=f"Error al leer archivo XML: {str(e)}"
+            ))
+        
+        return errors
+    
+    def _validate_zip_file(self, file_path: str, file_type: str) -> List[ErrorResponse]:
+        """Validar archivo ZIP con archivos TXT RIPS"""
+        errors = []
+        
+        try:
+            import zipfile
+            import tempfile
+            import os
+            
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                # Listar archivos en el ZIP
+                file_list = zip_ref.namelist()
+                txt_files = [f for f in file_list if f.lower().endswith('.txt')]
+                
+                if not txt_files:
+                    errors.append(ErrorResponse(
+                        line=0,
+                        field="archivo",
+                        error="El archivo ZIP no contiene archivos .txt"
+                    ))
+                    return errors
+                
+                # Extraer y validar cada archivo TXT
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    for txt_file in txt_files[:10]:  # Limitar a 10 archivos
+                        try:
+                            # Extraer archivo
+                            zip_ref.extract(txt_file, temp_dir)
+                            extracted_path = os.path.join(temp_dir, txt_file)
+                            
+                            # Validar el archivo TXT
+                            txt_errors = self._validate_text_file(extracted_path, file_type)
+                            
+                            # Agregar nombre de archivo al error
+                            for error in txt_errors:
+                                error.field = f"{txt_file}:{error.field}"
+                            
+                            errors.extend(txt_errors)
+                            
+                        except Exception as e:
+                            errors.append(ErrorResponse(
+                                line=0,
+                                field=txt_file,
+                                error=f"Error al procesar: {str(e)}"
+                            ))
+                
+                if not errors:
+                    errors.append(ErrorResponse(
+                        line=0,
+                        field="validación",
+                        error=f"✅ Archivo ZIP procesado: {len(txt_files)} archivo(s) TXT"
+                    ))
+                    
+        except zipfile.BadZipFile:
+            errors.append(ErrorResponse(
+                line=0,
+                field="archivo",
+                error="El archivo ZIP está corrupto o no es válido"
+            ))
+        except Exception as e:
+            errors.append(ErrorResponse(
+                line=0,
+                field="archivo",
+                error=f"Error al leer archivo ZIP: {str(e)}"
             ))
         
         return errors

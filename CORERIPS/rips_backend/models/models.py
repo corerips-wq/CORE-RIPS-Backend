@@ -1,24 +1,16 @@
+"""
+Modelos SQLAlchemy para documentación de la estructura de base de datos.
+NOTA: Esta aplicación usa Supabase directamente, estos modelos son solo referencia.
+Los enums activos están en models/types.py
+"""
+
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Enum
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
-from db.database import Base
-import enum
+from models.types import UserRole, FileStatus, ValidationStatus
 
-class UserRole(str, enum.Enum):
-    ADMIN = "admin"
-    VALIDATOR = "validator"
-    AUDITOR = "auditor"
-
-class FileStatus(str, enum.Enum):
-    UPLOADED = "uploaded"
-    PROCESSING = "processing"
-    VALIDATED = "validated"
-    ERROR = "error"
-
-class ValidationStatus(str, enum.Enum):
-    PASSED = "passed"
-    FAILED = "failed"
-    WARNING = "warning"
+# Crear Base para SQLAlchemy (solo documentación, se usa Supabase)
+Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"

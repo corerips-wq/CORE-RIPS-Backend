@@ -140,10 +140,16 @@ async def get_files(db: Client = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener archivos: {str(e)}")
 
+class ValidateRequest(BaseModel):
+    file_id: int
+    validation_types: Optional[List[str]] = ["deterministic"]
+
 @router.post("/validate")
-async def validate_file(file_id: int, db: Client = Depends(get_db)):
+async def validate_file(request: ValidateRequest, db: Client = Depends(get_db)):
     """Validar archivo RIPS"""
     try:
+        file_id = request.file_id
+        validation_types = request.validation_types
         # Obtener archivo
         result = db.table("files").select("*").eq("id", file_id).execute()
         
@@ -155,8 +161,52 @@ async def validate_file(file_id: int, db: Client = Depends(get_db)):
         # Actualizar estado a procesando
         db.table("files").update({"status": "processing"}).eq("id", file_id).execute()
         
-        # Aquí iría la lógica de validación
-        # Por ahora, simulamos una validación exitosa
+        # Ejecutar validaciones reales
+        from validators.deterministic_enhanced import EnhancedDeterministicValidator
+        
+        validator = EnhancedDeterministicValidator()
+        file_path = file_info["file_path"]
+        
+        # Determinar tipo de archivo
+        filename_upper = file_info["filename"].upper()
+        if "AC" in filename_upper:
+            file_type = "AC"
+        elif "AP" in filename_upper:
+            file_type = "AP"
+        elif "AM" in filename_upper:
+            file_type = "AM"
+        elif "AT" in filename_upper:
+            file_type = "AT"
+        elif "AU" in filename_upper:
+            file_type = "AU"
+        elif "AH" in filename_upper:
+            file_type = "AH"
+        elif "AN" in filename_upper:
+            file_type = "AN"
+        elif "US" in filename_upper:
+            file_type = "US"
+        else:
+            file_type = "AC"
+        
+        # Ejecutar validación
+        errors = validator.validate_file(file_path, file_type)
+        
+        # Guardar resultados en la base de datos
+        total_errors = 0
+        total_warnings = 0
+        
+        for error in errors:
+            validation_data = {
+                "file_id": file_id,
+                "line_number": error.line,
+                "field_name": error.field,
+                "rule_name": "deterministic_validation",
+                "error_message": error.error,
+                "status": "failed",
+                "validator_type": "deterministic"
+            }
+            db.table("validations").insert(validation_data).execute()
+            total_errors += 1
         
         # Actualizar estado a validado
         db.table("files").update({"status": "validated"}).eq("id", file_id).execute()
@@ -165,13 +215,16 @@ async def validate_file(file_id: int, db: Client = Depends(get_db)):
             "message": "Validación completada",
             "file_id": file_id,
             "status": "validated",
-            "errors": 0,
-            "warnings": 0
+            "errors": total_errors,
+            "warnings": total_warnings,
+            "total_validations": len(errors)
         }
         
     except HTTPException:
         raise
     except Exception as e:
+        # Actualizar estado a error
+        db.table("files").update({"status": "error"}).eq("id", file_id).execute()
         raise HTTPException(status_code=500, detail=f"Error al validar archivo: {str(e)}")
 
 @router.get("/results/{file_id}")

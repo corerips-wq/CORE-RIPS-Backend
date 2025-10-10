@@ -5,8 +5,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from main import app
-from db.database import get_db, Base
-from models.models import User, UserRole
+from db.database import get_db
+from models.models import User, Base
+from models.types import UserRole
 from services.auth import get_password_hash
 
 # Base de datos en memoria para pruebas

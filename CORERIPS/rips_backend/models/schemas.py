@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
-from models.models import UserRole, FileStatus, ValidationStatus
+from models.types import UserRole, FileStatus, ValidationStatus
 
 # Esquemas de Usuario
 class UserBase(BaseModel):

@@ -1,6 +1,7 @@
 from typing import List
 from sqlalchemy.orm import Session
-from models.models import File, Validation, ValidationStatus, FileStatus
+from models.models import File, Validation
+from models.types import ValidationStatus, FileStatus
 from models.schemas import ValidationResultsResponse, ValidationResponse, ErrorResponse
 from validators.deterministic_enhanced import EnhancedDeterministicValidator
 from validators.ai_validator_enhanced import EnhancedAIValidator

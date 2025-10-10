@@ -3,7 +3,8 @@ import shutil
 from typing import List
 from fastapi import UploadFile, HTTPException
 from sqlalchemy.orm import Session
-from models.models import File, User, FileStatus
+from models.models import File, User
+from models.types import FileStatus
 from models.schemas import FileCreate, FileResponse
 import uuid
 
