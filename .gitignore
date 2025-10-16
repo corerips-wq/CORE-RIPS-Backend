@@ -59,9 +59,8 @@ alembic.ini.bak
 # Uploads and temporary files
 uploads/*
 !uploads/.gitkeep
-uploads/*.rtf
-uploads/*.txt
-uploads/*.pdf
+**/uploads/*
+!**/uploads/.gitkeep
 analysis_output/*
 !analysis_output/.gitkeep
 
@@ -73,4 +72,14 @@ RULESRIPS/*.xlsx
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Test data and reports (not the test scripts themselves)
+TEST/*.txt
+TEST/*.json
+TEST/*.zip
+TEST/*.xlsx
+TEST/*.md
+
+# Downloaded or temporary frontend builds
+ripsCloudFront-main/
 
