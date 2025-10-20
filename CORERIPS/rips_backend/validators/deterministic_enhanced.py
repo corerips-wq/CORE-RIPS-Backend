@@ -14,6 +14,18 @@ class EnhancedDeterministicValidator:
         self.valid_note_types = ["NC", "ND"]  # Notas crédito/débito
         self.valid_control_types = ["1"]  # Solo tipo 1 para control
         
+        # Fechas importantes para transición CIE-10/CIE-11 (Resolución 1442/1657 de 2024)
+        self.fecha_inicio_cie11 = date(2024, 8, 14)  # Inicio CIE-11
+        self.fecha_fin_coexistencia = date(2027, 8, 14)  # Fin coexistencia CIE-10/CIE-11
+        
+        # Diagnósticos obstétricos (para validación con sexo)
+        # Códigos CIE-10 del capítulo O (Embarazo, parto y puerperio)
+        self.codigos_obstetricos = set()  # Se inicializará con catálogo
+        self.codigos_cie10_validos = set()  # Catálogo CIE-10
+        self.codigos_cie11_validos = set()  # Catálogo CIE-11
+        self.codigos_cups_validos = {}  # {código: {vigencia_inicio, vigencia_fin, tipo_servicio, etc}}
+        self.mapa_cie_cups = {}  # Mapeo de correspondencia CIE-CUPS
+        
         # Mapeo de archivos RIPS y sus campos obligatorios
         self.file_structures = {
             "CT": {  # Control
@@ -667,3 +679,602 @@ class EnhancedDeterministicValidator:
             "severity_distribution": severity_dist,
             "most_common_errors": sorted(error_types.items(), key=lambda x: x[1], reverse=True)[:5]
         }
+    
+    # ========================================================================
+    # REGLAS CIE11 - Resolución 1442/1657 de 2024
+    # ========================================================================
+    
+    def validate_cie11_001_transicion_cie10_cie11(self, codigo_cie: str, fecha_servicio: date, line_number: int) -> List[ErrorResponse]:
+        """
+        CIE11_001: Validar que los códigos CIE correspondan a CIE-10 o CIE-11 según fecha del servicio.
+        - Antes del 14/08/2024: Solo CIE-10
+        - Después del 14/08/2024: CIE-10 o CIE-11
+        """
+        errors = []
+        
+        if fecha_servicio < self.fecha_inicio_cie11:
+            # Antes del 14/08/2024: Solo CIE-10 permitido
+            if not self._is_valid_cie10(codigo_cie):
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cie",
+                    error=f"[CIE11_001] Código CIE '{codigo_cie}' no válido. Antes del 14/08/2024 solo se permiten códigos CIE-10."
+                ))
+        else:
+            # Después del 14/08/2024: CIE-10 o CIE-11 permitidos
+            if not (self._is_valid_cie10(codigo_cie) or self._is_valid_cie11(codigo_cie)):
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cie",
+                    error=f"[CIE11_001] Código CIE '{codigo_cie}' no existe en catálogos CIE-10 ni CIE-11."
+                ))
+        
+        return errors
+    
+    def validate_cie11_002_coexistencia(self, codigo_cie: str, fecha_servicio: date, line_number: int) -> List[ErrorResponse]:
+        """
+        CIE11_002: Permitir coexistencia de CIE-10 y CIE-11 hasta el 14/08/2027.
+        Después de esa fecha, solo CIE-11 será válido.
+        """
+        errors = []
+        
+        if fecha_servicio > self.fecha_fin_coexistencia:
+            # Después del 14/08/2027: Solo CIE-11
+            if not self._is_valid_cie11(codigo_cie):
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cie",
+                    error=f"[CIE11_002] Después del 14/08/2027 solo se permiten códigos CIE-11. Código '{codigo_cie}' no es CIE-11 válido."
+                ))
+        
+        return errors
+    
+    def validate_cie11_003_existencia_catalogo(self, codigo_cie: str, line_number: int) -> List[ErrorResponse]:
+        """
+        CIE11_003: Verificar que el código CIE exista en el catálogo oficial (CIE-10 o CIE-11).
+        """
+        errors = []
+        
+        if not (self._is_valid_cie10(codigo_cie) or self._is_valid_cie11(codigo_cie)):
+            errors.append(ErrorResponse(
+                line=line_number,
+                field="codigo_cie",
+                error=f"[CIE11_003] Código CIE '{codigo_cie}' no existe en catálogos oficiales CIE-10/CIE-11."
+            ))
+        
+        return errors
+    
+    def validate_cie11_004_compatibilidad_sexo(self, codigo_cie: str, sexo: str, line_number: int) -> List[ErrorResponse]:
+        """
+        CIE11_004: Validar que el diagnóstico principal sea compatible con el sexo del paciente.
+        Ejemplo: Diagnósticos obstétricos solo para sexo femenino.
+        """
+        errors = []
+        
+        # Verificar diagnósticos obstétricos (capítulo O de CIE-10)
+        if sexo == "M" and codigo_cie.upper().startswith("O"):
+            errors.append(ErrorResponse(
+                line=line_number,
+                field="diagnostico_principal",
+                error=f"[CIE11_004] Diagnóstico obstétrico '{codigo_cie}' no es compatible con sexo masculino."
+            ))
+        
+        # Diagnósticos específicos de hombre
+        codigos_masculinos = ["N40", "N41", "N42", "N43", "N44", "N45", "N46", "N47", "N48", "N49", "N50"]
+        if sexo == "F" and any(codigo_cie.upper().startswith(cod) for cod in codigos_masculinos):
+            errors.append(ErrorResponse(
+                line=line_number,
+                field="diagnostico_principal",
+                error=f"[CIE11_004] Diagnóstico '{codigo_cie}' es específico del sexo masculino."
+            ))
+        
+        return errors
+    
+    def validate_cie11_005_correspondencia_cie_cups(self, codigo_cie: str, codigo_cups: str, line_number: int) -> List[ErrorResponse]:
+        """
+        CIE11_005: Verificar correspondencia entre diagnóstico (CIE) y procedimiento (CUPS).
+        Debe existir correspondencia clínica lógica entre diagnóstico y procedimiento.
+        """
+        errors = []
+        
+        # Esta validación requiere un mapeo de correspondencias CIE-CUPS
+        # Por ahora validamos casos básicos
+        
+        # Ejemplo: Procedimientos obstétricos requieren diagnósticos obstétricos
+        procedimientos_obstetricos = ["869", "870", "871", "872", "873", "874"]  # Códigos CUPS de partos
+        if any(codigo_cups.startswith(proc) for proc in procedimientos_obstetricos):
+            if not codigo_cie.upper().startswith("O"):
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cie",
+                    error=f"[CIE11_005] Procedimiento obstétrico '{codigo_cups}' requiere diagnóstico obstétrico (capítulo O), encontrado '{codigo_cie}'."
+                ))
+        
+        return errors
+    
+    # ========================================================================
+    # REGLAS CUPS - Resolución 2641 de 2024
+    # ========================================================================
+    
+    def validate_r2641_d001_cups_existencia(self, codigo_cups: str, line_number: int) -> List[ErrorResponse]:
+        """
+        R2641-D001: Validar que el código CUPS exista en el catálogo oficial vigente.
+        """
+        errors = []
+        
+        if not self._is_valid_cups(codigo_cups):
+            errors.append(ErrorResponse(
+                line=line_number,
+                field="codigo_cups",
+                error=f"[R2641-D001] Código CUPS '{codigo_cups}' no existe en el catálogo oficial."
+            ))
+        
+        return errors
+    
+    def validate_r2641_d002_cups_vigencia(self, codigo_cups: str, fecha_servicio: date, line_number: int) -> List[ErrorResponse]:
+        """
+        R2641-D002: Verificar que el CUPS esté vigente en la fecha del servicio.
+        """
+        errors = []
+        
+        # Validar si el código está vigente en la fecha indicada
+        cups_info = self.codigos_cups_validos.get(codigo_cups)
+        if cups_info:
+            vigencia_inicio = cups_info.get("vigencia_inicio")
+            vigencia_fin = cups_info.get("vigencia_fin")
+            
+            if vigencia_inicio and fecha_servicio < vigencia_inicio:
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[R2641-D002] CUPS '{codigo_cups}' aún no estaba vigente en {fecha_servicio}. Vigencia desde {vigencia_inicio}."
+                ))
+            
+            if vigencia_fin and fecha_servicio > vigencia_fin:
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[R2641-D002] CUPS '{codigo_cups}' ya no está vigente en {fecha_servicio}. Vigencia hasta {vigencia_fin}."
+                ))
+        
+        return errors
+    
+    def validate_r2641_d003_cups_tipo_servicio(self, codigo_cups: str, tipo_servicio: str, line_number: int) -> List[ErrorResponse]:
+        """
+        R2641-D003: Validar que el CUPS pertenezca al tipo de servicio reportado.
+        """
+        errors = []
+        
+        cups_info = self.codigos_cups_validos.get(codigo_cups)
+        if cups_info:
+            tipo_esperado = cups_info.get("tipo_servicio")
+            if tipo_esperado and tipo_servicio and tipo_servicio != tipo_esperado:
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[R2641-D003] CUPS '{codigo_cups}' no corresponde al tipo de servicio '{tipo_servicio}'. Tipo esperado: '{tipo_esperado}'."
+                ))
+        
+        return errors
+    
+    def validate_r2641_d005_cups_grupo_etario(self, codigo_cups: str, edad: int, line_number: int) -> List[ErrorResponse]:
+        """
+        R2641-D005: Validar coherencia entre el grupo etario permitido y el CUPS.
+        """
+        errors = []
+        
+        cups_info = self.codigos_cups_validos.get(codigo_cups)
+        if cups_info:
+            edad_minima = cups_info.get("edad_minima")
+            edad_maxima = cups_info.get("edad_maxima")
+            
+            if edad_minima is not None and edad < edad_minima:
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[R2641-D005] CUPS '{codigo_cups}' requiere edad mínima de {edad_minima} años. Edad del paciente: {edad}."
+                ))
+            
+            if edad_maxima is not None and edad > edad_maxima:
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[R2641-D005] CUPS '{codigo_cups}' requiere edad máxima de {edad_maxima} años. Edad del paciente: {edad}."
+                ))
+        
+        return errors
+    
+    def validate_r2641_d006_cups_sexo(self, codigo_cups: str, sexo: str, line_number: int) -> List[ErrorResponse]:
+        """
+        R2641-D006: Validar coherencia entre el sexo y el CUPS.
+        Ejemplo: Partos solo aplican a sexo femenino.
+        """
+        errors = []
+        
+        # Procedimientos exclusivos de mujeres
+        procedimientos_femeninos = ["869", "870", "871", "872", "873", "874"]  # Partos
+        if any(codigo_cups.startswith(proc) for proc in procedimientos_femeninos):
+            if sexo != "F":
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[R2641-D006] CUPS '{codigo_cups}' (procedimiento ginecológico/obstétrico) solo aplica a sexo femenino."
+                ))
+        
+        # Procedimientos exclusivos de hombres
+        procedimientos_masculinos = ["770", "771", "772"]  # Urología masculina específica
+        if any(codigo_cups.startswith(proc) for proc in procedimientos_masculinos):
+            if sexo != "M":
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[R2641-D006] CUPS '{codigo_cups}' (procedimiento urológico masculino) solo aplica a sexo masculino."
+                ))
+        
+        return errors
+    
+    def validate_r2641_d004_cups_tarifa(self, codigo_cups: str, line_number: int) -> List[ErrorResponse]:
+        """
+        R2641-D004: Verificar que el CUPS tenga un valor tarifario definido en el catálogo.
+        Severidad: Advertencia (algunos CUPS informativos pueden carecer de tarifa).
+        """
+        errors = []
+        
+        cups_info = self.codigos_cups_validos.get(codigo_cups)
+        if cups_info:
+            tarifa = cups_info.get("tarifa") or cups_info.get("valor")
+            if tarifa is None or tarifa == 0:
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[R2641-D004] ADVERTENCIA: CUPS '{codigo_cups}' no tiene valor tarifario definido."
+                ))
+        
+        return errors
+    
+    def validate_r2641_d007_cups_cie_asociado(self, codigo_cups: str, codigo_cie: str, line_number: int) -> List[ErrorResponse]:
+        """
+        R2641-D007: Verificar que el CUPS esté asociado a un código CIE válido.
+        Validación cruzada con diagnóstico principal.
+        """
+        errors = []
+        
+        # Validar que ambos códigos sean válidos
+        if not self._is_valid_cups(codigo_cups):
+            return errors  # Ya se validó en R2641-D001
+        
+        if not (self._is_valid_cie10(codigo_cie) or self._is_valid_cie11(codigo_cie)):
+            return errors  # Ya se validó en CIE11_003
+        
+        # Si existe mapeo CIE-CUPS, verificar correspondencia
+        if self.mapa_cie_cups and codigo_cups in self.mapa_cie_cups:
+            codigos_cie_permitidos = self.mapa_cie_cups[codigo_cups]
+            if codigo_cie not in codigos_cie_permitidos:
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[R2641-D007] CUPS '{codigo_cups}' no está asociado con el diagnóstico CIE '{codigo_cie}'."
+                ))
+        
+        return errors
+    
+    def validate_r2641_d008_cups_duplicados(self, registros: List[Dict], line_number: int) -> List[ErrorResponse]:
+        """
+        R2641-D008: Validar que el CUPS no se repita en un mismo episodio con igual fecha y diagnóstico.
+        """
+        errors = []
+        
+        # Esta validación requiere acceso a múltiples registros
+        # Se implementará cuando se tenga el contexto completo del archivo
+        
+        return errors
+    
+    def validate_r2641_d009_cups_finalidad(self, codigo_cups: str, line_number: int) -> List[ErrorResponse]:
+        """
+        R2641-D009: Validar que el CUPS reportado tenga tipo de finalidad asignado.
+        """
+        errors = []
+        
+        cups_info = self.codigos_cups_validos.get(codigo_cups)
+        if cups_info:
+            finalidad = cups_info.get("finalidad") or cups_info.get("tipo_finalidad")
+            if not finalidad:
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[R2641-D009] CUPS '{codigo_cups}' no tiene tipo de finalidad asignado."
+                ))
+        
+        return errors
+    
+    def validate_r2641_d010_cups_obligatorios(self, cups_presentes: List[str], tipo_evento: str, line_number: int) -> List[ErrorResponse]:
+        """
+        R2641-D010: Verificar que los CUPS obligatorios según tipo de evento estén presentes.
+        Aplica para urgencias o control.
+        """
+        errors = []
+        
+        # Definir CUPS obligatorios por tipo de evento
+        cups_obligatorios_por_evento = {
+            "urgencia": ["890201", "890202"],  # Atención inicial urgencias
+            "control": ["890301", "890302"],   # Consulta de control
+            "hospitalizacion": ["890401"]      # Atención hospitalaria
+        }
+        
+        if tipo_evento in cups_obligatorios_por_evento:
+            cups_requeridos = cups_obligatorios_por_evento[tipo_evento]
+            cups_faltantes = [cup for cup in cups_requeridos if cup not in cups_presentes]
+            
+            if cups_faltantes:
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[R2641-D010] ADVERTENCIA: Faltan CUPS obligatorios para tipo de evento '{tipo_evento}': {', '.join(cups_faltantes)}."
+                ))
+        
+        return errors
+    
+    # ========================================================================
+    # REGLAS DE CATÁLOGOS BÁSICOS - CUPS/CIE10/DANE
+    # ========================================================================
+    
+    def validate_us001_tipo_documento_catalogo(self, tipo_documento: str, line_number: int) -> List[ErrorResponse]:
+        """
+        US-001: Validar que el tipo de documento esté en el catálogo DIAN/MinSalud.
+        Valores permitidos: CC, TI, RC, CE, PA, NUIP, MS
+        Severidad: Bloqueante
+        """
+        errors = []
+        
+        if tipo_documento not in self.valid_document_types:
+            errors.append(ErrorResponse(
+                line=line_number,
+                field="tipo_documento_usuario",
+                error=f"[US-001] Tipo de documento '{tipo_documento}' no válido. Valores permitidos: {', '.join(self.valid_document_types)}."
+            ))
+        
+        return errors
+    
+    def validate_ac012_diagnostico_principal_vigencia(self, codigo_cie: str, fecha_servicio: date, line_number: int) -> List[ErrorResponse]:
+        """
+        AC-012: Validar existencia y vigencia del diagnóstico principal CIE.
+        Debe existir en catálogos CIE-10/CIE-11 según vigencia y tener coherencia clínica.
+        Severidad: Bloqueante
+        """
+        errors = []
+        
+        # Validar existencia en catálogo
+        if not (self._is_valid_cie10(codigo_cie) or self._is_valid_cie11(codigo_cie)):
+            errors.append(ErrorResponse(
+                line=line_number,
+                field="diagnostico_principal_cie",
+                error=f"[AC-012] Diagnóstico principal '{codigo_cie}' no existe en catálogos CIE-10/CIE-11."
+            ))
+            return errors
+        
+        # Validar vigencia según fecha
+        # Antes del 14/08/2024: solo CIE-10
+        if fecha_servicio < self.fecha_inicio_cie11:
+            if not self._is_valid_cie10(codigo_cie):
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="diagnostico_principal_cie",
+                    error=f"[AC-012] Diagnóstico '{codigo_cie}' no es CIE-10 válido. Solo CIE-10 permitido antes del 14/08/2024."
+                ))
+        
+        # Después del 14/08/2027: solo CIE-11
+        if fecha_servicio > self.fecha_fin_coexistencia:
+            if not self._is_valid_cie11(codigo_cie):
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="diagnostico_principal_cie",
+                    error=f"[AC-012] Diagnóstico '{codigo_cie}' no es CIE-11 válido. Solo CIE-11 permitido después del 14/08/2027."
+                ))
+        
+        return errors
+    
+    def validate_ap001_cups_existencia_vigencia(self, codigo_cups: str, fecha_servicio: date, line_number: int) -> List[ErrorResponse]:
+        """
+        AP-001: Validar existencia en catálogo CUPS y vigencia.
+        El código CUPS debe existir y estar vigente en la fecha del servicio.
+        Severidad: Bloqueante
+        """
+        errors = []
+        
+        # Validar existencia
+        if not self._is_valid_cups(codigo_cups):
+            errors.append(ErrorResponse(
+                line=line_number,
+                field="codigo_cups",
+                error=f"[AP-001] Código CUPS '{codigo_cups}' no existe en el catálogo oficial."
+            ))
+            return errors
+        
+        # Validar vigencia
+        cups_info = self.codigos_cups_validos.get(codigo_cups)
+        if cups_info:
+            vigencia_inicio = cups_info.get("vigencia_inicio")
+            vigencia_fin = cups_info.get("vigencia_fin")
+            
+            if vigencia_inicio and fecha_servicio < vigencia_inicio:
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[AP-001] CUPS '{codigo_cups}' no estaba vigente en {fecha_servicio}. Vigencia desde {vigencia_inicio}."
+                ))
+            
+            if vigencia_fin and fecha_servicio > vigencia_fin:
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[AP-001] CUPS '{codigo_cups}' ya no está vigente en {fecha_servicio}. Vigencia hasta {vigencia_fin}."
+                ))
+        
+        return errors
+    
+    def validate_am001_codigo_producto_catalogo(self, codigo_producto: str, line_number: int) -> List[ErrorResponse]:
+        """
+        AM-001: Validar existencia del código de producto en catálogos POS/GTIN/Código IPS.
+        El código debe existir en al menos uno de los catálogos de medicamentos.
+        Severidad: Bloqueante
+        """
+        errors = []
+        
+        # Validación básica de formato
+        if not codigo_producto or len(codigo_producto) < 3 or len(codigo_producto) > 20:
+            errors.append(ErrorResponse(
+                line=line_number,
+                field="codigo_producto",
+                error=f"[AM-001] Código de producto '{codigo_producto}' tiene longitud inválida (mínimo 3, máximo 20 caracteres)."
+            ))
+            return errors
+        
+        # Aquí se debería validar contra catálogos POS/GTIN
+        # Por ahora solo validación de formato básica
+        if not re.match(r'^[A-Za-z0-9\-]+$', codigo_producto):
+            errors.append(ErrorResponse(
+                line=line_number,
+                field="codigo_producto",
+                error=f"[AM-001] Código de producto '{codigo_producto}' contiene caracteres no permitidos. Solo alfanuméricos y guiones."
+            ))
+        
+        return errors
+    
+    # ========================================================================
+    # VALIDACIONES CRUZADAS ENTRE CAMPOS
+    # ========================================================================
+    
+    def validate_edad_sexo_diagnostico(self, edad: int, sexo: str, codigo_cie: str, line_number: int) -> List[ErrorResponse]:
+        """
+        Validar coherencia entre edad, sexo y diagnóstico.
+        Combina validaciones de múltiples reglas.
+        """
+        errors = []
+        
+        # Validar diagnósticos obstétricos
+        if sexo == "M" and codigo_cie.upper().startswith("O"):
+            errors.append(ErrorResponse(
+                line=line_number,
+                field="diagnostico_principal",
+                error=f"[CRUZADA] Diagnóstico obstétrico '{codigo_cie}' no es compatible con sexo masculino."
+            ))
+        
+        # Validar diagnósticos pediátricos en adultos mayores
+        diagnosticos_pediatricos = ["P00", "P01", "P02", "P03", "P04", "P05", "P07", "P08", "P10", "P15"]
+        if edad > 18 and any(codigo_cie.upper().startswith(cod) for cod in diagnosticos_pediatricos):
+            errors.append(ErrorResponse(
+                line=line_number,
+                field="diagnostico_principal",
+                error=f"[CRUZADA] ADVERTENCIA: Diagnóstico pediátrico '{codigo_cie}' en paciente de {edad} años."
+            ))
+        
+        # Validar diagnósticos geriátricos en menores
+        if edad < 60:
+            diagnosticos_geriatricos = ["R54"]  # Senilidad
+            if any(codigo_cie.upper().startswith(cod) for cod in diagnosticos_geriatricos):
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="diagnostico_principal",
+                    error=f"[CRUZADA] ADVERTENCIA: Diagnóstico geriátrico '{codigo_cie}' en paciente de {edad} años."
+                ))
+        
+        return errors
+    
+    def validate_diagnostico_procedimiento(self, codigo_cie: str, codigo_cups: str, line_number: int) -> List[ErrorResponse]:
+        """
+        Validar coherencia entre diagnóstico y procedimiento.
+        Verifica que exista correspondencia clínica lógica.
+        """
+        errors = []
+        
+        # Procedimientos quirúrgicos con diagnósticos incompatibles
+        # Ejemplo: Cirugía cardíaca con diagnóstico dermatológico
+        procedimientos_cardiovasculares = ["373", "374", "375", "376"]  # Cirugía cardíaca
+        if any(codigo_cups.startswith(proc) for proc in procedimientos_cardiovasculares):
+            if not codigo_cie.upper().startswith("I"):  # CIE-10 capítulo I: Enfermedades cardiovasculares
+                errors.append(ErrorResponse(
+                    line=line_number,
+                    field="codigo_cups",
+                    error=f"[CRUZADA] ADVERTENCIA: Procedimiento cardiovascular '{codigo_cups}' con diagnóstico no cardiovascular '{codigo_cie}'."
+                ))
+        
+        return errors
+    
+    # ========================================================================
+    # MÉTODOS AUXILIARES PARA CONSULTA DE CATÁLOGOS
+    # ========================================================================
+    
+    def _is_valid_cie10(self, codigo: str) -> bool:
+        """Verificar si un código es CIE-10 válido"""
+        if not codigo:
+            return False
+        
+        # Si hay catálogo cargado, usar el catálogo
+        if self.codigos_cie10_validos:
+            return codigo.upper() in self.codigos_cie10_validos
+        
+        # Validación básica de formato CIE-10
+        # Formatos válidos: A00, A00.1, A001 (letra + 2-3 dígitos + opcional .X)
+        # CIE-10 puede tener hasta 4 caracteres después de la letra (ej: O80.1)
+        pattern = r'^[A-Z]\d{2,3}(\.\d{1,2})?$'
+        return bool(re.match(pattern, codigo.upper()))
+    
+    def _is_valid_cie11(self, codigo: str) -> bool:
+        """Verificar si un código es CIE-11 válido"""
+        if not codigo:
+            return False
+        
+        # Si hay catálogo cargado, usar el catálogo
+        if self.codigos_cie11_validos:
+            return codigo.upper() in self.codigos_cie11_validos
+        
+        # Validación básica de formato CIE-11 (diferente de CIE-10)
+        # CIE-11 comienza con dígito o tiene formato específico: 1A00, 2E65.0, etc.
+        # Para distinguir de CIE-10, CIE-11 típicamente comienza con número
+        # Sin catálogo cargado, asumimos que si hay catálogo se validará correctamente
+        # Formato flexible: dígito al inicio o formato alfanumérico complejo
+        codigo_upper = codigo.upper()
+        
+        # Si comienza con letra mayúscula seguida de 2-3 dígitos, probablemente es CIE-10
+        if re.match(r'^[A-Z]\d{2,3}', codigo_upper):
+            return False  # Formato CIE-10, no CIE-11
+        
+        # CIE-11 puede comenzar con número o tener formato complejo
+        pattern = r'^[0-9][A-Z0-9]{1,}(\.[0-9A-Z]+)?$'
+        return bool(re.match(pattern, codigo_upper))
+    
+    def _is_valid_cups(self, codigo: str) -> bool:
+        """Verificar si un código CUPS es válido"""
+        if not codigo:
+            return False
+        
+        # Si hay catálogo cargado, usar el catálogo
+        if self.codigos_cups_validos:
+            return codigo in self.codigos_cups_validos
+        
+        # Validación básica de formato CUPS (numérico de 3-7 dígitos)
+        return bool(re.match(r'^\d{3,7}$', codigo))
+    
+    def load_cie10_catalog(self, cie10_codes: set):
+        """Cargar catálogo de códigos CIE-10"""
+        self.codigos_cie10_validos = cie10_codes
+        # Identificar códigos obstétricos (capítulo O)
+        self.codigos_obstetricos = {code for code in cie10_codes if code.startswith('O')}
+    
+    def load_cie11_catalog(self, cie11_codes: set):
+        """Cargar catálogo de códigos CIE-11"""
+        self.codigos_cie11_validos = cie11_codes
+    
+    def load_cups_catalog(self, cups_data: Dict[str, Dict]):
+        """
+        Cargar catálogo de códigos CUPS con información adicional
+        cups_data: {código: {vigencia_inicio, vigencia_fin, tipo_servicio, edad_minima, edad_maxima, ...}}
+        """
+        self.codigos_cups_validos = cups_data
+    
+    def load_cie_cups_mapping(self, mapping: Dict[str, List[str]]):
+        """
+        Cargar mapeo de correspondencia CIE-CUPS
+        mapping: {codigo_cups: [lista_de_codigos_cie_compatibles]}
+        """
+        self.mapa_cie_cups = mapping
