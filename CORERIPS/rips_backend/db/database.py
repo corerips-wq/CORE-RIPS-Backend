@@ -8,11 +8,13 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
-if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-    raise ValueError("SUPABASE_URL y SUPABASE_ANON_KEY deben estar configurados en .env")
-
-# Cliente de Supabase
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+# Configuración temporal para despliegue sin Supabase
+if not SUPABASE_URL or not SUPABASE_ANON_KEY or SUPABASE_URL == "https://placeholder.supabase.co":
+    print("⚠️  Modo desarrollo: Supabase no configurado, usando mock")
+    supabase = None
+else:
+    # Cliente de Supabase
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 def get_db():
     """Dependency para obtener cliente de Supabase"""
