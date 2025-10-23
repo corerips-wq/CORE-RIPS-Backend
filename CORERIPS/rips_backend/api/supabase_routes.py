@@ -5,7 +5,12 @@ from supabase import Client
 import os
 import hashlib
 import secrets
+import json
 from typing import List, Optional
+from services.rips_data_service import RIPSDataService
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 security = HTTPBearer()
@@ -99,8 +104,16 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 # Rutas de archivos
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...), db: Client = Depends(get_db)):
-    """Subir archivo RIPS"""
+    """Subir archivo RIPS y procesar datos"""
+    file_id = None
     try:
+        # Validar que sea archivo JSON
+        if not file.filename.endswith('.json'):
+            raise HTTPException(
+                status_code=400, 
+                detail="Solo se permiten archivos JSON. Por favor suba un archivo .json"
+            )
+        
         # Crear directorio uploads si no existe
         os.makedirs("uploads", exist_ok=True)
         
@@ -121,14 +134,69 @@ async def upload_file(file: UploadFile = File(...), db: Client = Depends(get_db)
         }
         
         result = db.table("files").insert(file_data).execute()
+        file_id = result.data[0]["id"]
         
-        return {
-            "message": "Archivo subido exitosamente",
-            "file_id": result.data[0]["id"],
-            "filename": file.filename
-        }
+        logger.info(f"Archivo guardado con ID: {file_id}")
         
+        # Actualizar estado a procesando
+        db.table("files").update({"status": "processing"}).eq("id", file_id).execute()
+        
+        # PROCESAR E INSERTAR DATOS RIPS
+        try:
+            logger.info(f"Iniciando procesamiento de datos RIPS del archivo {file_id}")
+            rips_service = RIPSDataService(db)
+            stats = rips_service.process_rips_file(file_path, file_id)
+            
+            # Actualizar estado a procesado exitosamente
+            db.table("files").update({"status": "validated"}).eq("id", file_id).execute()
+            
+            logger.info(f"Datos RIPS insertados exitosamente: {stats}")
+            
+            return {
+                "message": "Archivo procesado e insertado exitosamente",
+                "file_id": file_id,
+                "filename": file.filename,
+                "status": "validated",
+                "data_inserted": {
+                    "usuarios": stats.get("usuarios", 0),
+                    "consultas": stats.get("consultas", 0),
+                    "procedimientos": stats.get("procedimientos", 0),
+                    "medicamentos": stats.get("medicamentos", 0),
+                    "otros_servicios": stats.get("otros_servicios", 0),
+                    "urgencias": stats.get("urgencias", 0),
+                    "hospitalizaciones": stats.get("hospitalizaciones", 0),
+                    "recien_nacidos": stats.get("recien_nacidos", 0),
+                    "facturacion": stats.get("facturacion", 0),
+                    "ajustes": stats.get("ajustes", 0),
+                    "control": stats.get("control", 0)
+                },
+                "errores": stats.get("errores", [])
+            }
+            
+        except Exception as processing_error:
+            # Si hay error en el procesamiento, actualizar estado
+            db.table("files").update({"status": "error"}).eq("id", file_id).execute()
+            logger.error(f"Error procesando datos RIPS: {str(processing_error)}")
+            
+            return {
+                "message": "Archivo subido pero con errores al procesar datos",
+                "file_id": file_id,
+                "filename": file.filename,
+                "status": "error",
+                "error": str(processing_error)
+            }
+        
+    except HTTPException:
+        raise
     except Exception as e:
+        # Si el archivo ya fue creado, actualizar estado a error
+        if file_id:
+            try:
+                db.table("files").update({"status": "error"}).eq("id", file_id).execute()
+            except:
+                pass
+        
+        logger.error(f"Error al subir archivo: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error al subir archivo: {str(e)}")
 
 @router.get("/files")
