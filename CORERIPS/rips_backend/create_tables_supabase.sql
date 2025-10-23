@@ -97,296 +97,382 @@ WHERE schemaname = 'public'
 ORDER BY tablename;
 
 -- ========================================
--- TABLAS PARA DATOS RIPS
+-- RIPS DATA TABLES
 -- ========================================
 
--- Tabla: rips_consultas (AC - Consultas)
-CREATE TABLE rips_consultas (
+-- Table: rips_consultations (AC - Consultations)
+CREATE TABLE rips_consultations (
     id SERIAL PRIMARY KEY,
-    archivo_consecutivo VARCHAR(20),
-    numero_factura VARCHAR(50),
-    codigo_prestador VARCHAR(12) NOT NULL,
-    tipo_identificacion VARCHAR(2),
-    numero_identificacion VARCHAR(20),
-    fecha_consulta DATE,
-    numero_autorizacion VARCHAR(20),
-    codigo_consulta VARCHAR(10),
-    finalidad_consulta VARCHAR(2),
-    causa_externa VARCHAR(2),
-    diagnostico_principal VARCHAR(7),
-    diagnostico_relacionado_1 VARCHAR(7),
-    diagnostico_relacionado_2 VARCHAR(7),
-    diagnostico_relacionado_3 VARCHAR(7),
-    tipo_diagnostico_principal VARCHAR(2),
-    valor_consulta DECIMAL(15,2),
-    valor_cuota_moderadora DECIMAL(15,2),
-    valor_neto_pagar DECIMAL(15,2),
+    consecutive_file VARCHAR(20),
+    invoice_number VARCHAR(50),
+    provider_code VARCHAR(12) NOT NULL,
+    identification_type VARCHAR(2),
+    identification_number VARCHAR(20),
+    consultation_date DATE,
+    authorization_number VARCHAR(20),
+    consultation_code VARCHAR(10),
+    consultation_purpose VARCHAR(2),
+    external_cause VARCHAR(2),
+    primary_diagnosis VARCHAR(7),
+    related_diagnosis_1 VARCHAR(7),
+    related_diagnosis_2 VARCHAR(7),
+    related_diagnosis_3 VARCHAR(7),
+    primary_diagnosis_type VARCHAR(2),
+    consultation_value DECIMAL(15,2),
+    copayment_value DECIMAL(15,2),
+    net_payment_value DECIMAL(15,2),
     file_id INTEGER REFERENCES files(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla: rips_procedimientos (AP - Procedimientos)
-CREATE TABLE rips_procedimientos (
+-- Table: rips_procedures (AP - Procedures)
+CREATE TABLE rips_procedures (
     id SERIAL PRIMARY KEY,
-    archivo_consecutivo VARCHAR(20),
-    numero_factura VARCHAR(50),
-    codigo_prestador VARCHAR(12) NOT NULL,
-    tipo_identificacion VARCHAR(2),
-    numero_identificacion VARCHAR(20),
-    fecha_procedimiento DATE,
-    numero_autorizacion VARCHAR(20),
-    codigo_procedimiento VARCHAR(7),
-    ambito_realizacion VARCHAR(2),
-    finalidad_procedimiento VARCHAR(2),
-    personal_que_atendio VARCHAR(2),
-    diagnostico_principal VARCHAR(7),
-    diagnostico_relacionado VARCHAR(7),
-    complicacion VARCHAR(2),
-    forma_realizacion_acto_quirurgico VARCHAR(2),
-    valor_procedimiento DECIMAL(15,2),
+    consecutive_file VARCHAR(20),
+    invoice_number VARCHAR(50),
+    provider_code VARCHAR(12) NOT NULL,
+    identification_type VARCHAR(2),
+    identification_number VARCHAR(20),
+    procedure_date DATE,
+    authorization_number VARCHAR(20),
+    procedure_code VARCHAR(7),
+    performance_scope VARCHAR(2),
+    procedure_purpose VARCHAR(2),
+    attending_personnel VARCHAR(2),
+    primary_diagnosis VARCHAR(7),
+    related_diagnosis VARCHAR(7),
+    complication VARCHAR(2),
+    surgical_act_performance_form VARCHAR(2),
+    procedure_value DECIMAL(15,2),
     file_id INTEGER REFERENCES files(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla: rips_usuarios (US - Usuarios)
-CREATE TABLE rips_usuarios (
+-- Table: rips_users (US - Users)
+CREATE TABLE rips_users (
     id SERIAL PRIMARY KEY,
-    tipo_documento VARCHAR(2) NOT NULL,
-    numero_documento VARCHAR(20) NOT NULL,
-    codigo_entidad_administradora VARCHAR(6),
-    tipo_usuario VARCHAR(2),
-    apellido_primero VARCHAR(60),
-    apellido_segundo VARCHAR(60),
-    nombre_primero VARCHAR(60),
-    nombre_segundo VARCHAR(60),
-    edad_medida VARCHAR(2),
-    edad VARCHAR(3),
-    unidad_medida_edad VARCHAR(2),
-    codigo_departamento VARCHAR(2),
-    codigo_municipio VARCHAR(3),
-    zona_residencial VARCHAR(1),
+    document_type VARCHAR(2) NOT NULL,
+    document_number VARCHAR(20) NOT NULL,
+    administrator_entity_code VARCHAR(6),
+    user_type VARCHAR(2),
+    first_surname VARCHAR(60),
+    second_surname VARCHAR(60),
+    first_name VARCHAR(60),
+    second_name VARCHAR(60),
+    age_measure VARCHAR(2),
+    age VARCHAR(3),
+    age_unit VARCHAR(2),
+    department_code VARCHAR(2),
+    municipality_code VARCHAR(3),
+    residential_zone VARCHAR(1),
     file_id INTEGER REFERENCES files(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla: rips_medicamentos (AM - Medicamentos)
-CREATE TABLE rips_medicamentos (
+-- Table: rips_medications (AM - Medications)
+CREATE TABLE rips_medications (
     id SERIAL PRIMARY KEY,
-    archivo_consecutivo VARCHAR(20),
-    numero_factura VARCHAR(50),
-    codigo_prestador VARCHAR(12) NOT NULL,
-    tipo_identificacion VARCHAR(2),
-    numero_identificacion VARCHAR(20),
-    fecha_consulta DATE,
-    numero_autorizacion VARCHAR(20),
-    codigo_medicamento VARCHAR(20),
-    tipo_medicamento VARCHAR(2),
-    nombre_generico VARCHAR(255),
-    forma_farmaceutica VARCHAR(2),
-    concentracion_medicamento VARCHAR(255),
-    unidad_medida VARCHAR(2),
-    numero_unidad VARCHAR(10),
-    valor_unitario DECIMAL(15,2),
-    valor_total DECIMAL(15,2),
+    consecutive_file VARCHAR(20),
+    invoice_number VARCHAR(50),
+    provider_code VARCHAR(12) NOT NULL,
+    identification_type VARCHAR(2),
+    identification_number VARCHAR(20),
+    consultation_date DATE,
+    authorization_number VARCHAR(20),
+    medication_code VARCHAR(20),
+    medication_type VARCHAR(2),
+    generic_name VARCHAR(255),
+    pharmaceutical_form VARCHAR(2),
+    medication_concentration VARCHAR(255),
+    unit_measure VARCHAR(2),
+    unit_number VARCHAR(10),
+    unit_value DECIMAL(15,2),
+    total_value DECIMAL(15,2),
     file_id INTEGER REFERENCES files(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla: rips_otros_servicios (AT - Otros Servicios)
-CREATE TABLE rips_otros_servicios (
+-- Table: rips_other_services (AT - Other Services)
+CREATE TABLE rips_other_services (
     id SERIAL PRIMARY KEY,
-    archivo_consecutivo VARCHAR(20),
-    numero_factura VARCHAR(50),
-    codigo_prestador VARCHAR(12) NOT NULL,
-    tipo_identificacion VARCHAR(2),
-    numero_identificacion VARCHAR(20),
-    fecha_servicio DATE,
-    numero_autorizacion VARCHAR(20),
-    codigo_servicio VARCHAR(7),
-    nombre_servicio VARCHAR(255),
-    cantidad DECIMAL(10,2),
-    valor_unitario DECIMAL(15,2),
-    valor_total DECIMAL(15,2),
+    consecutive_file VARCHAR(20),
+    invoice_number VARCHAR(50),
+    provider_code VARCHAR(12) NOT NULL,
+    identification_type VARCHAR(2),
+    identification_number VARCHAR(20),
+    service_date DATE,
+    authorization_number VARCHAR(20),
+    service_code VARCHAR(7),
+    service_name VARCHAR(255),
+    quantity DECIMAL(10,2),
+    unit_value DECIMAL(15,2),
+    total_value DECIMAL(15,2),
     file_id INTEGER REFERENCES files(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla: rips_urgencias (AU - Urgencias)
-CREATE TABLE rips_urgencias (
+-- Table: rips_emergencies (AU - Emergencies)
+CREATE TABLE rips_emergencies (
     id SERIAL PRIMARY KEY,
-    archivo_consecutivo VARCHAR(20),
-    numero_factura VARCHAR(50),
-    codigo_prestador VARCHAR(12) NOT NULL,
-    tipo_identificacion VARCHAR(2),
-    numero_identificacion VARCHAR(20),
-    fecha_ingreso DATE,
-    hora_ingreso TIME,
-    numero_autorizacion VARCHAR(20),
-    causa_externa VARCHAR(2),
-    diagnostico_ingreso VARCHAR(7),
-    diagnostico_egreso VARCHAR(7),
-    diagnostico_relacionado_1 VARCHAR(7),
-    diagnostico_relacionado_2 VARCHAR(7),
-    diagnostico_relacionado_3 VARCHAR(7),
-    diagnostico_relacionado_4 VARCHAR(7),
-    tipo_diagnostico_principal VARCHAR(2),
-    valor_servicio DECIMAL(15,2),
-    valor_cuota_moderadora DECIMAL(15,2),
-    valor_neto DECIMAL(15,2),
+    consecutive_file VARCHAR(20),
+    invoice_number VARCHAR(50),
+    provider_code VARCHAR(12) NOT NULL,
+    identification_type VARCHAR(2),
+    identification_number VARCHAR(20),
+    admission_date DATE,
+    admission_time TIME,
+    authorization_number VARCHAR(20),
+    external_cause VARCHAR(2),
+    admission_diagnosis VARCHAR(7),
+    discharge_diagnosis VARCHAR(7),
+    related_diagnosis_1 VARCHAR(7),
+    related_diagnosis_2 VARCHAR(7),
+    related_diagnosis_3 VARCHAR(7),
+    related_diagnosis_4 VARCHAR(7),
+    primary_diagnosis_type VARCHAR(2),
+    service_value DECIMAL(15,2),
+    copayment_value DECIMAL(15,2),
+    net_value DECIMAL(15,2),
     file_id INTEGER REFERENCES files(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla: rips_hospitalizacion (AH - Hospitalización)
-CREATE TABLE rips_hospitalizacion (
+-- Table: rips_hospitalizations (AH - Hospitalizations)
+CREATE TABLE rips_hospitalizations (
     id SERIAL PRIMARY KEY,
-    archivo_consecutivo VARCHAR(20),
-    numero_factura VARCHAR(50),
-    codigo_prestador VARCHAR(12) NOT NULL,
-    tipo_identificacion VARCHAR(2),
-    numero_identificacion VARCHAR(20),
-    via_ingreso VARCHAR(2),
-    fecha_ingreso DATE,
-    hora_ingreso TIME,
-    numero_autorizacion VARCHAR(20),
-    causa_externa VARCHAR(2),
-    diagnostico_ingreso VARCHAR(7),
-    diagnostico_egreso VARCHAR(7),
-    diagnostico_relacionado_1 VARCHAR(7),
-    diagnostico_relacionado_2 VARCHAR(7),
-    diagnostico_relacionado_3 VARCHAR(7),
-    diagnostico_relacionado_4 VARCHAR(7),
-    tipo_diagnostico_principal VARCHAR(2),
-    dias_estancia INTEGER,
-    tipo_egreso VARCHAR(2),
-    condicion_destino_usuario VARCHAR(2),
-    causa_muerte_obstetrica VARCHAR(2),
-    fecha_egreso DATE,
-    hora_egreso TIME,
-    valor_servicio DECIMAL(15,2),
-    valor_cuota_moderadora DECIMAL(15,2),
-    valor_neto DECIMAL(15,2),
+    consecutive_file VARCHAR(20),
+    invoice_number VARCHAR(50),
+    provider_code VARCHAR(12) NOT NULL,
+    identification_type VARCHAR(2),
+    identification_number VARCHAR(20),
+    admission_route VARCHAR(2),
+    admission_date DATE,
+    admission_time TIME,
+    authorization_number VARCHAR(20),
+    external_cause VARCHAR(2),
+    admission_diagnosis VARCHAR(7),
+    discharge_diagnosis VARCHAR(7),
+    related_diagnosis_1 VARCHAR(7),
+    related_diagnosis_2 VARCHAR(7),
+    related_diagnosis_3 VARCHAR(7),
+    related_diagnosis_4 VARCHAR(7),
+    primary_diagnosis_type VARCHAR(2),
+    stay_days INTEGER,
+    discharge_type VARCHAR(2),
+    user_destination_condition VARCHAR(2),
+    obstetric_death_cause VARCHAR(2),
+    discharge_date DATE,
+    discharge_time TIME,
+    service_value DECIMAL(15,2),
+    copayment_value DECIMAL(15,2),
+    net_value DECIMAL(15,2),
     file_id INTEGER REFERENCES files(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla: rips_recien_nacidos (AN - Recién Nacidos)
-CREATE TABLE rips_recien_nacidos (
+-- Table: rips_newborns (AN - Newborns)
+CREATE TABLE rips_newborns (
     id SERIAL PRIMARY KEY,
-    archivo_consecutivo VARCHAR(20),
-    numero_factura VARCHAR(50),
-    codigo_prestador VARCHAR(12) NOT NULL,
-    tipo_identificacion_madre VARCHAR(2),
-    numero_identificacion_madre VARCHAR(20),
-    fecha_nacimiento DATE,
-    hora_nacimiento TIME,
-    edad_gestacional INTEGER,
-    control_prenatal VARCHAR(1),
-    sexo VARCHAR(1),
-    peso_nacimiento DECIMAL(5,2),
-    diagnostico_principal VARCHAR(7),
-    diagnostico_relacionado_1 VARCHAR(7),
-    diagnostico_relacionado_2 VARCHAR(7),
-    diagnostico_relacionado_3 VARCHAR(7),
-    causa_basica_muerte VARCHAR(7),
-    fecha_muerte DATE,
-    hora_muerte TIME,
+    consecutive_file VARCHAR(20),
+    invoice_number VARCHAR(50),
+    provider_code VARCHAR(12) NOT NULL,
+    mother_identification_type VARCHAR(2),
+    mother_identification_number VARCHAR(20),
+    birth_date DATE,
+    birth_time TIME,
+    gestational_age INTEGER,
+    prenatal_control VARCHAR(1),
+    sex VARCHAR(1),
+    birth_weight DECIMAL(5,2),
+    primary_diagnosis VARCHAR(7),
+    related_diagnosis_1 VARCHAR(7),
+    related_diagnosis_2 VARCHAR(7),
+    related_diagnosis_3 VARCHAR(7),
+    basic_death_cause VARCHAR(7),
+    death_date DATE,
+    death_time TIME,
     file_id INTEGER REFERENCES files(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla: rips_facturacion (AF - Facturación)
-CREATE TABLE rips_facturacion (
+-- Table: rips_billing (AF - Billing)
+CREATE TABLE rips_billing (
     id SERIAL PRIMARY KEY,
-    archivo_consecutivo VARCHAR(20),
-    numero_factura VARCHAR(50) NOT NULL,
-    codigo_prestador VARCHAR(12) NOT NULL,
-    fecha_expedicion_factura DATE,
-    fecha_inicio_periodo DATE,
-    fecha_fin_periodo DATE,
-    codigo_entidad_administradora VARCHAR(6),
-    nombre_entidad_administradora VARCHAR(100),
-    numero_contrato VARCHAR(50),
-    plan_beneficios VARCHAR(50),
-    numero_poliza VARCHAR(50),
-    copago DECIMAL(15,2),
-    valor_comision DECIMAL(15,2),
-    valor_descuentos DECIMAL(15,2),
-    valor_neto_factura DECIMAL(15,2),
+    consecutive_file VARCHAR(20),
+    invoice_number VARCHAR(50) NOT NULL,
+    provider_code VARCHAR(12) NOT NULL,
+    invoice_issue_date DATE,
+    period_start_date DATE,
+    period_end_date DATE,
+    administrator_entity_code VARCHAR(6),
+    administrator_entity_name VARCHAR(100),
+    contract_number VARCHAR(50),
+    benefits_plan VARCHAR(50),
+    policy_number VARCHAR(50),
+    copayment DECIMAL(15,2),
+    commission_value DECIMAL(15,2),
+    discounts_value DECIMAL(15,2),
+    net_invoice_value DECIMAL(15,2),
     file_id INTEGER REFERENCES files(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla: rips_ajustes (AD - Ajustes/Notas)
-CREATE TABLE rips_ajustes (
+-- Table: rips_adjustments (AD - Adjustments/Notes)
+CREATE TABLE rips_adjustments (
     id SERIAL PRIMARY KEY,
-    archivo_consecutivo VARCHAR(20),
-    numero_factura VARCHAR(50) NOT NULL,
-    codigo_prestador VARCHAR(12) NOT NULL,
-    tipo_nota VARCHAR(2) NOT NULL,
-    numero_nota VARCHAR(50),
-    fecha_expedicion_nota DATE,
-    codigo_concepto VARCHAR(2),
-    descripcion_concepto VARCHAR(255),
-    valor_ajuste DECIMAL(15,2),
+    consecutive_file VARCHAR(20),
+    invoice_number VARCHAR(50) NOT NULL,
+    provider_code VARCHAR(12) NOT NULL,
+    note_type VARCHAR(2) NOT NULL,
+    note_number VARCHAR(50),
+    note_issue_date DATE,
+    concept_code VARCHAR(2),
+    concept_description VARCHAR(255),
+    adjustment_value DECIMAL(15,2),
     file_id INTEGER REFERENCES files(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla: rips_control (CT - Control)
+-- Table: rips_control (CT - Control)
 CREATE TABLE rips_control (
     id SERIAL PRIMARY KEY,
-    tipo_registro VARCHAR(1) NOT NULL,
-    codigo_prestador VARCHAR(12) NOT NULL,
-    fecha_generacion DATE NOT NULL,
-    archivo_rips VARCHAR(20),
-    total_registros INTEGER,
-    codigo_entidad_administradora VARCHAR(6),
-    nombre_entidad_administradora VARCHAR(100),
-    numero_contrato VARCHAR(50),
-    plan_beneficios VARCHAR(50),
-    version_anexo_tecnico VARCHAR(20),
+    record_type VARCHAR(1) NOT NULL,
+    provider_code VARCHAR(12) NOT NULL,
+    generation_date DATE NOT NULL,
+    rips_file VARCHAR(20),
+    total_records INTEGER,
+    administrator_entity_code VARCHAR(6),
+    administrator_entity_name VARCHAR(100),
+    contract_number VARCHAR(50),
+    benefits_plan VARCHAR(50),
+    technical_annex_version VARCHAR(20),
     file_id INTEGER REFERENCES files(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Crear índices para las tablas RIPS
-CREATE INDEX idx_rips_consultas_file_id ON rips_consultas(file_id);
-CREATE INDEX idx_rips_consultas_codigo_prestador ON rips_consultas(codigo_prestador);
-CREATE INDEX idx_rips_consultas_fecha ON rips_consultas(fecha_consulta);
+-- Create indexes for RIPS tables
+CREATE INDEX idx_rips_consultations_file_id ON rips_consultations(file_id);
+CREATE INDEX idx_rips_consultations_provider_code ON rips_consultations(provider_code);
+CREATE INDEX idx_rips_consultations_date ON rips_consultations(consultation_date);
 
-CREATE INDEX idx_rips_procedimientos_file_id ON rips_procedimientos(file_id);
-CREATE INDEX idx_rips_procedimientos_codigo_prestador ON rips_procedimientos(codigo_prestador);
-CREATE INDEX idx_rips_procedimientos_fecha ON rips_procedimientos(fecha_procedimiento);
+CREATE INDEX idx_rips_procedures_file_id ON rips_procedures(file_id);
+CREATE INDEX idx_rips_procedures_provider_code ON rips_procedures(provider_code);
+CREATE INDEX idx_rips_procedures_date ON rips_procedures(procedure_date);
 
-CREATE INDEX idx_rips_usuarios_file_id ON rips_usuarios(file_id);
-CREATE INDEX idx_rips_usuarios_documento ON rips_usuarios(tipo_documento, numero_documento);
+CREATE INDEX idx_rips_users_file_id ON rips_users(file_id);
+CREATE INDEX idx_rips_users_document ON rips_users(document_type, document_number);
 
-CREATE INDEX idx_rips_medicamentos_file_id ON rips_medicamentos(file_id);
-CREATE INDEX idx_rips_medicamentos_codigo_prestador ON rips_medicamentos(codigo_prestador);
+CREATE INDEX idx_rips_medications_file_id ON rips_medications(file_id);
+CREATE INDEX idx_rips_medications_provider_code ON rips_medications(provider_code);
 
-CREATE INDEX idx_rips_otros_servicios_file_id ON rips_otros_servicios(file_id);
-CREATE INDEX idx_rips_otros_servicios_codigo_prestador ON rips_otros_servicios(codigo_prestador);
+CREATE INDEX idx_rips_other_services_file_id ON rips_other_services(file_id);
+CREATE INDEX idx_rips_other_services_provider_code ON rips_other_services(provider_code);
 
-CREATE INDEX idx_rips_urgencias_file_id ON rips_urgencias(file_id);
-CREATE INDEX idx_rips_urgencias_codigo_prestador ON rips_urgencias(codigo_prestador);
+CREATE INDEX idx_rips_emergencies_file_id ON rips_emergencies(file_id);
+CREATE INDEX idx_rips_emergencies_provider_code ON rips_emergencies(provider_code);
 
-CREATE INDEX idx_rips_hospitalizacion_file_id ON rips_hospitalizacion(file_id);
-CREATE INDEX idx_rips_hospitalizacion_codigo_prestador ON rips_hospitalizacion(codigo_prestador);
+CREATE INDEX idx_rips_hospitalizations_file_id ON rips_hospitalizations(file_id);
+CREATE INDEX idx_rips_hospitalizations_provider_code ON rips_hospitalizations(provider_code);
 
-CREATE INDEX idx_rips_recien_nacidos_file_id ON rips_recien_nacidos(file_id);
-CREATE INDEX idx_rips_recien_nacidos_codigo_prestador ON rips_recien_nacidos(codigo_prestador);
+CREATE INDEX idx_rips_newborns_file_id ON rips_newborns(file_id);
+CREATE INDEX idx_rips_newborns_provider_code ON rips_newborns(provider_code);
 
-CREATE INDEX idx_rips_facturacion_file_id ON rips_facturacion(file_id);
-CREATE INDEX idx_rips_facturacion_numero_factura ON rips_facturacion(numero_factura);
+CREATE INDEX idx_rips_billing_file_id ON rips_billing(file_id);
+CREATE INDEX idx_rips_billing_invoice_number ON rips_billing(invoice_number);
 
-CREATE INDEX idx_rips_ajustes_file_id ON rips_ajustes(file_id);
-CREATE INDEX idx_rips_ajustes_numero_factura ON rips_ajustes(numero_factura);
+CREATE INDEX idx_rips_adjustments_file_id ON rips_adjustments(file_id);
+CREATE INDEX idx_rips_adjustments_invoice_number ON rips_adjustments(invoice_number);
 
 CREATE INDEX idx_rips_control_file_id ON rips_control(file_id);
-CREATE INDEX idx_rips_control_codigo_prestador ON rips_control(codigo_prestador);
+CREATE INDEX idx_rips_control_provider_code ON rips_control(provider_code);
 
--- Verificar que todas las tablas se crearon correctamente
+-- ========================================
+-- OFFICIAL CATALOG TABLES
+-- ========================================
+
+-- Table: cups_catalog (Unique Classification of Health Procedures - CUPS)
+CREATE TABLE IF NOT EXISTS cups_catalog (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    section VARCHAR(100),
+    status VARCHAR(20) DEFAULT 'ACTIVE',
+    enabled BOOLEAN DEFAULT TRUE,
+    effective_date DATE,
+    expiration_date DATE,
+    last_updated TIMESTAMP WITH TIME ZONE,
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Table: icd10_catalog (International Classification of Diseases - ICD-10)
+CREATE TABLE IF NOT EXISTS icd10_catalog (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(10) UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    category VARCHAR(10),
+    is_category BOOLEAN DEFAULT FALSE,
+    enabled BOOLEAN DEFAULT TRUE,
+    last_updated TIMESTAMP WITH TIME ZONE,
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Table: dane_municipalities
+CREATE TABLE IF NOT EXISTS dane_municipalities (
+    id SERIAL PRIMARY KEY,
+    municipality_code VARCHAR(5) UNIQUE NOT NULL,
+    municipality_name VARCHAR(100),
+    department_code VARCHAR(2) NOT NULL,
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Table: dane_departments
+CREATE TABLE IF NOT EXISTS dane_departments (
+    id SERIAL PRIMARY KEY,
+    department_code VARCHAR(2) UNIQUE NOT NULL,
+    department_name VARCHAR(100),
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for fast catalog searches
+CREATE INDEX IF NOT EXISTS idx_cups_catalog_code ON cups_catalog(code);
+CREATE INDEX IF NOT EXISTS idx_cups_catalog_status ON cups_catalog(status);
+CREATE INDEX IF NOT EXISTS idx_cups_catalog_enabled ON cups_catalog(enabled);
+CREATE INDEX IF NOT EXISTS idx_cups_catalog_section ON cups_catalog(section);
+CREATE INDEX IF NOT EXISTS idx_icd10_catalog_code ON icd10_catalog(code);
+CREATE INDEX IF NOT EXISTS idx_icd10_catalog_category ON icd10_catalog(category);
+CREATE INDEX IF NOT EXISTS idx_icd10_catalog_enabled ON icd10_catalog(enabled);
+CREATE INDEX IF NOT EXISTS idx_dane_municipalities_code ON dane_municipalities(municipality_code);
+CREATE INDEX IF NOT EXISTS idx_dane_municipalities_department ON dane_municipalities(department_code);
+CREATE INDEX IF NOT EXISTS idx_dane_departments_code ON dane_departments(department_code);
+
+-- Triggers for updated_at in catalog tables
+CREATE TRIGGER update_cups_catalog_updated_at 
+    BEFORE UPDATE ON cups_catalog 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_icd10_catalog_updated_at 
+    BEFORE UPDATE ON icd10_catalog 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_dane_municipalities_updated_at 
+    BEFORE UPDATE ON dane_municipalities 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_dane_departments_updated_at 
+    BEFORE UPDATE ON dane_departments 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Verify that all tables were created correctly
 SELECT 
     schemaname,
     tablename,
@@ -395,10 +481,12 @@ FROM pg_tables
 WHERE schemaname = 'public' 
     AND tablename IN (
         'users', 'files', 'validations',
-        'rips_consultas', 'rips_procedimientos', 'rips_usuarios',
-        'rips_medicamentos', 'rips_otros_servicios', 'rips_urgencias',
-        'rips_hospitalizacion', 'rips_recien_nacidos', 'rips_facturacion',
-        'rips_ajustes', 'rips_control'
+        'rips_consultations', 'rips_procedures', 'rips_users',
+        'rips_medications', 'rips_other_services', 'rips_emergencies',
+        'rips_hospitalizations', 'rips_newborns', 'rips_billing',
+        'rips_adjustments', 'rips_control',
+        'cups_catalog', 'icd10_catalog', 
+        'dane_municipalities', 'dane_departments'
     )
 ORDER BY tablename;
 

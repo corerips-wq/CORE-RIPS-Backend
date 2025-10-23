@@ -1,0 +1,65 @@
+# Este archivo especifica archivos que NO se suben a Google Cloud
+
+.gcloudignore
+.git
+.gitignore
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Pruebas
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# Archivos de configuración local
+.env
+.env.local
+*.log
+
+# Archivos temporales
+*.swp
+*.swo
+*~
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+
+# Archivos subidos localmente
+uploads/*
+
+# Documentación
+*.md
+docs/
+
+# Imágenes y reportes
+image/
+analysis_output/
+
+# Scripts de desarrollo
+run_tests.sh
+
+# Archivos de muestra
+sample_data/
+
+# Base de datos local
+*.db
+*.sqlite
+*.sqlite3
+

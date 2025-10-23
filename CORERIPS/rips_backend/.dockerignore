@@ -1,0 +1,62 @@
+# Entornos virtuales
+venv/
+env/
+ENV/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Archivos de prueba
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# Archivos de desarrollo
+.git/
+.gitignore
+.env
+.env.local
+*.log
+
+# Archivos temporales y de editor
+*.swp
+*.swo
+*~
+.DS_Store
+.vscode/
+.idea/
+
+# Archivos de documentación
+*.md
+docs/
+
+# Archivos subidos (no incluir en la imagen)
+uploads/*
+!uploads/.gitkeep
+
+# Scripts de desarrollo
+run_tests.sh
+scripts/test_*.py
+scripts/run_tests.py
+
+# Configuración de base de datos local
+*.db
+*.sqlite
+*.sqlite3
+
+# Imágenes y archivos de análisis
+image/
+analysis_output/
+
+# Migraciones de Alembic (opcional, depende de tu estrategia)
+# alembic/
+
+# Archivos de muestra
+sample_data/
+
